@@ -1,56 +1,104 @@
-# Welcome to your Expo app 👋
+# PUD.AI
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Seu estudo universitário, gamificado.**
 
-## Get started
+PUD.AI é um aplicativo mobile que transforma o Plano Único de Disciplina (PUD) de cada matéria em quizzes automáticos gerados por Inteligência Artificial, com feedback imediato e gamificação (XP, níveis, conquistas e ranking) para engajar o estudante em sessões curtas de revisão — pensadas para "tempos mortos" da rotina universitária, como o transporte público.
 
-1. Install dependencies
+Projeto desenvolvido para a disciplina de **Desenvolvimento Mobile — IFCE, Campus Aracati**.
 
-   ```bash
-   npm install
-   ```
+## Equipe
 
-2. Start the app
+- José Guilherme Lima de Carvalho
+- Marcio Hiury de Sousa Barbosa
 
-   ```bash
-   npx expo start
-   ```
+## Sobre o projeto
 
-In the output, you'll find options to open the app in a
+A proposta nasce de um problema comum entre estudantes de cursos como Ciência da Computação e Engenharia: pouco tempo livre e dificuldade de manter a base teórica das disciplinas em dia. O PUD.AI resolve isso ancorando toda a geração de conteúdo (quizzes, explicações) estritamente ao PUD oficial de cada disciplina, evitando alucinações da IA e garantindo fidelidade ao que é cobrado em sala.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Principais funcionalidades (MVP)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **Autenticação** — login por e-mail/senha, com suporte planejado a SSO (Google/Apple)
+- **Gerenciamento de disciplinas** — cadastro das matérias do semestre e acompanhamento de progresso
+- **Ingestão de PUDs** — leitura dos Planos Únicos de Disciplina para dar contexto à IA
+- **Geração automática de quizzes** — questões de múltipla escolha ancoradas na ementa
+- **Correção e feedback com IA** — resposta corrigida na hora, com justificativa baseada no PUD
 
-## Get a fresh project
+### Funcionalidades de engajamento
 
-When you're ready, run:
+- Sistema de gamificação com ranking semanal/geral
+- Perfil com XP, níveis e conquistas (badges)
+- Painel de desempenho (Analytics) com percentual de acertos por disciplina
 
-```bash
-npm run reset-project
+Para o detalhamento completo dos requisitos funcionais e não-funcionais, com priorização MoSCoW, veja a documentação de Engenharia de Requisitos do projeto.
+
+## Telas do protótipo
+
+| # | Tela | Descrição |
+|---|------|-----------|
+| 1 | Splash Screen | Abertura com identidade visual; toque no logo leva ao login |
+| 2 | Login | Autenticação com e-mail/senha + SSO |
+| 3 | Dashboard (Home) | Visão geral, progresso e CTA para continuar estudando |
+| 4 | Disciplinas | Listagem das matérias do semestre com progresso |
+| 5–6 | Quiz | Pergunta objetiva com feedback visual de acerto/erro |
+| 7 | Analytics | Desempenho detalhado por disciplina |
+| 8 | Perfil | Nível, XP e conquistas desbloqueadas |
+| 9 | Ranking | Leaderboard semanal/geral entre estudantes |
+
+## Tecnologias
+
+- [Expo](https://expo.dev/) / React Native
+- [Expo Router](https://docs.expo.dev/router/introduction/) (navegação por arquivos)
+- TypeScript
+- `@expo/vector-icons`
+
+## Estrutura de pastas
+
+```
+pud-ai/
+├── src/
+│   ├── app/                  # rotas (Expo Router)
+│   │   ├── _layout.tsx       # stack raiz
+│   │   ├── index.tsx         # Splash
+│   │   ├── login.tsx         # Login
+│   │   └── (tabs)/           # navegação principal pós-login
+│   │       ├── _layout.tsx
+│   │       ├── index.tsx     # Home / Dashboard
+│   │       ├── disciplinas.tsx
+│   │       ├── ranking.tsx
+│   │       └── perfil.tsx
+│   ├── screens/               # componentes de tela
+│   │   ├── SplashScreen.tsx
+│   │   ├── LoginScreen.tsx
+│   │   └── HomeScreen.tsx
+│   └── constants/
+│       └── colors.ts          # paleta de cores do app
+├── app.json
+├── package.json
+└── README.md
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Como rodar o projeto
 
-### Other setup steps
+Pré-requisitos: [Node.js](https://nodejs.org/) instalado e o app **Expo Go** no celular (ou um emulador Android/iOS configurado).
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+# instalar dependências
+npm install
 
-## Learn more
+# iniciar o projeto (limpando o cache)
+npx expo start -c
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Escaneie o QR code exibido no terminal com o app Expo Go (Android) ou a câmera (iOS) para abrir o app no celular.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Status atual
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [x] Splash Screen
+- [x] Login
+- [x] Dashboard (Home)
+- [ ] Disciplinas
+- [ ] Quiz (pergunta e resultado)
+- [ ] Analytics
+- [ ] Perfil
+- [ ] Ranking
+- [ ] Integração real com IA para geração de quizzes
