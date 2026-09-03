@@ -1,14 +1,9 @@
-// app/index.tsx
-import React, { useState } from 'react';
-import SplashScreen from '../screens/SplashScreen';
-import LoginScreen from '../screens/LoginScreen';
+import { useRouter } from 'expo-router';
+
+import SplashScreen from '@/screens/SplashScreen';
 
 export default function Index() {
-  const [currentScreen, setCurrentScreen] = useState('Splash');
+  const router = useRouter();
 
-  if (currentScreen === 'Splash') {
-    return <SplashScreen onNavigate={() => setCurrentScreen('Login')} />;
-  }
-
-  return <LoginScreen />;
+  return <SplashScreen onNavigate={() => router.push('/login')} />;
 }

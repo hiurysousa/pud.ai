@@ -1,16 +1,48 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
-import { COLORS } from '../constants/colors';
+import { useRouter } from 'expo-router';
+
+import { COLORS } from '@/constants/colors';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = () => {
+    const emailDigitado = email.trim().toLowerCase();
+    const senhaDigitada = password.trim();
+
+    if (!emailDigitado || !senhaDigitada) {
+      Alert.alert('Campos obrigatórios', 'Preencha o e-mail e a senha para continuar.');
+      return;
+    }
+
+    if (emailDigitado === 'admin' && senhaDigitada === 'admin') {
+      router.replace('/home');
+    } else {
+      Alert.alert('Acesso negado', 'Para testes, use o e-mail "admin" e a senha "admin".');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
-        
-        {/* Header / Logo menor */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.inner}
+      >
         <View style={styles.logoContainer}>
           <Text style={styles.logoPUD}>PUD</Text>
           <Text style={styles.logoAI}>.AI</Text>
@@ -18,83 +50,89 @@ export default function LoginScreen() {
 
         <View style={styles.textContainer}>
           <Text style={styles.title}>Bem-vindo de volta!</Text>
-          <Text style={styles.subtitle}>Estude seu plano de ensino com inteligência artificial.</Text>
+          <Text style={styles.subtitle}>
+            Estude seu plano de ensino com inteligência artificial.
+          </Text>
         </View>
 
-        {/* Formulário */}
         <View style={styles.formContainer}>
           <Text style={styles.label}>E-mail acadêmico</Text>
-          <TextInput 
-            style={styles.input} 
-            placeholder="lucas.silva@aluno.ifce.edu.br" 
+          <TextInput
+            style={styles.input}
+            placeholder="lucas.silva@aluno.ifce.edu.br"
             keyboardType="email-address"
             autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
           />
 
           <Text style={styles.label}>Sua senha</Text>
           <View style={styles.passwordContainer}>
-            <TextInput 
-              style={styles.passwordInput} 
-              placeholder="••••••••" 
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="••••••••"
               secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Feather name={showPassword ? "eye" : "eye-off"} size={20} color={COLORS.textSecondary} />
+              <Feather
+                name={showPassword ? 'eye' : 'eye-off'}
+                size={20}
+                color={COLORS.textSecondary}
+              />
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity style={styles.forgotPassword}>
+
+          <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => router.push('/forgot-password')}
+          >
             <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.primaryButton}>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
             <Text style={styles.primaryButtonText}>Entrar</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Divisor */}
         <View style={styles.dividerContainer}>
           <View style={styles.dividerLine} />
           <Text style={styles.dividerText}>OU CONTINUAR COM</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Botões Sociais */}
         <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.socialButton}>
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={() => Alert.alert('Em breve', 'Login com Google em desenvolvimento.')}
+          >
             <FontAwesome name="google" size={20} color={COLORS.textPrimary} />
             <Text style={styles.socialButtonText}>Google</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={() => Alert.alert('Em breve', 'Login com Apple em desenvolvimento.')}
+          >
             <FontAwesome name="apple" size={20} color={COLORS.textPrimary} />
             <Text style={styles.socialButtonText}>Apple</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Não tem conta? </Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/register')}>
             <Text style={styles.createAccountText}>Criar conta</Text>
           </TouchableOpacity>
         </View>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  inner: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  inner: { flex: 1, paddingHorizontal: 24, paddingTop: 40, justifyContent: 'center' },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -103,23 +141,10 @@ const styles = StyleSheet.create({
   },
   logoPUD: { fontSize: 28, fontWeight: '900', color: COLORS.primary, letterSpacing: -1 },
   logoAI: { fontSize: 28, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
-  textContainer: {
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    lineHeight: 22,
-  },
-  formContainer: {
-    marginBottom: 24,
-  },
+  textContainer: { marginBottom: 32 },
+  title: { fontSize: 26, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: COLORS.textSecondary, lineHeight: 22 },
+  formContainer: { marginBottom: 24 },
   label: {
     fontSize: 14,
     fontWeight: '600',
@@ -147,21 +172,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: COLORS.background,
   },
-  passwordInput: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginTop: 12,
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  passwordInput: { flex: 1, fontSize: 16, color: COLORS.textPrimary },
+  forgotPassword: { alignSelf: 'flex-end', marginTop: 12, marginBottom: 24 },
+  forgotPasswordText: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
   primaryButton: {
     backgroundColor: COLORS.primary,
     height: 56,
@@ -169,31 +182,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryButtonText: {
-    color: COLORS.background,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  primaryButtonText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  dividerText: { marginHorizontal: 16, fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  socialContainer: { flexDirection: 'row', justifyContent: 'space-between' },
   socialButton: {
     flex: 1,
     flexDirection: 'row',
@@ -205,25 +198,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 6,
   },
-  socialButtonText: {
-    marginLeft: 12,
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 40,
-    marginBottom: 20,
-  },
-  footerText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  createAccountText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  socialButtonText: { marginLeft: 12, fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 40, marginBottom: 20 },
+  footerText: { fontSize: 14, color: COLORS.textSecondary },
+  createAccountText: { fontSize: 14, color: COLORS.primary, fontWeight: 'bold' },
 });
