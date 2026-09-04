@@ -14,12 +14,15 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSendReset = () => {
+  const handleSendReset = async () => {
     const emailDigitado = email.trim().toLowerCase();
 
     if (!emailDigitado) {
@@ -27,11 +30,21 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
-    Alert.alert(
-      'Link enviado',
-      `Se existir uma conta com o e-mail ${emailDigitado}, você receberá instruções para redefinir a senha.`,
-      [{ text: 'OK', onPress: () => router.replace('/login') }],
-    );
+    try {
+      setSubmitting(true);
+      await resetPassword(emailDigitado);
+      Alert.alert(
+        'Link enviado',
+        'Se existir uma conta com este e-mail, você receberá instruções para redefinir a senha.',
+        [{ text: 'OK', onPress: () => router.replace('/login') }],
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Não foi possível enviar o link de recuperação.';
+      Alert.alert('Falha na recuperação', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -62,8 +75,14 @@ export default function ForgotPasswordScreen() {
             onChangeText={setEmail}
           />
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSendReset}>
-            <Text style={styles.primaryButtonText}>Enviar link de recuperação</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+            onPress={handleSendReset}
+            disabled={submitting}
+          >
+            <Text style={styles.primaryButtonText}>
+              {submitting ? 'Enviando...' : 'Enviar link de recuperação'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -105,6 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  primaryButtonDisabled: { opacity: 0.7 },
   primaryButtonText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 40 },
   footerText: { fontSize: 14, color: COLORS.textSecondary },

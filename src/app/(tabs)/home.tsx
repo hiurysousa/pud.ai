@@ -2,13 +2,16 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const firstName = user?.displayName?.split(' ')[0] ?? 'Estudante';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Olá, Estudante!</Text>
+      <Text style={styles.title}>Olá, {firstName}!</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Progresso do PUD: Cálculo I</Text>

@@ -14,14 +14,17 @@ import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const emailDigitado = email.trim().toLowerCase();
     const senhaDigitada = password.trim();
 
@@ -30,10 +33,15 @@ export default function LoginScreen() {
       return;
     }
 
-    if (emailDigitado === 'admin' && senhaDigitada === 'admin') {
+    try {
+      setSubmitting(true);
+      await signIn(emailDigitado, senhaDigitada);
       router.replace('/home');
-    } else {
-      Alert.alert('Acesso negado', 'Para testes, use o e-mail "admin" e a senha "admin".');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível entrar.';
+      Alert.alert('Falha no login', message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -91,8 +99,12 @@ export default function LoginScreen() {
             <Text style={styles.forgotPasswordText}>Esqueceu a senha?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText}>Entrar</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+            onPress={handleLogin}
+            disabled={submitting}
+          >
+            <Text style={styles.primaryButtonText}>{submitting ? 'Entrando...' : 'Entrar'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -182,6 +194,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  primaryButtonDisabled: { opacity: 0.7 },
   primaryButtonText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },

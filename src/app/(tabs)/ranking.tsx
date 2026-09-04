@@ -10,28 +10,36 @@ export default function RankingScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Top 10 da Turma</Text>
-      <Text style={styles.subtitle}>Ranking semanal de XP entre os estudantes.</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Top 10 da Turma</Text>
+        <Text style={styles.subtitle}>Ranking semanal de XP entre os estudantes.</Text>
 
-      {ranking.map((item) => (
-        <View
-          key={item.posicao}
-          style={[styles.card, item.nome === 'Você' && styles.cardHighlight]}
-        >
-          <Text style={styles.position}>#{item.posicao}</Text>
-          <View style={styles.info}>
-            <Text style={styles.name}>{item.nome}</Text>
-            <Text style={styles.xp}>{item.xp} XP</Text>
+        {ranking.map((item) => (
+          <View
+            key={item.posicao}
+            style={[styles.card, item.nome === 'Você' && styles.cardHighlight]}
+          >
+            <Text style={styles.position}>#{item.posicao}</Text>
+            <View style={styles.info}>
+              <Text style={styles.name}>{item.nome}</Text>
+              <Text style={styles.xp}>{item.xp} XP</Text>
+            </View>
           </View>
-        </View>
-      ))}
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 24, paddingTop: 60 },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  content: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
   card: {

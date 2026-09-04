@@ -10,22 +10,30 @@ export default function DisciplinasScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Suas Disciplinas</Text>
-      <Text style={styles.subtitle}>Acompanhe o progresso de cada matéria do semestre.</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Suas Disciplinas</Text>
+        <Text style={styles.subtitle}>Acompanhe o progresso de cada matéria do semestre.</Text>
 
-      {disciplinas.map((disciplina) => (
-        <View key={disciplina.nome} style={styles.card}>
-          <Text style={styles.cardTitle}>{disciplina.nome}</Text>
-          <Text style={styles.cardProgress}>Progresso: {disciplina.progresso}</Text>
-        </View>
-      ))}
+        {disciplinas.map((disciplina) => (
+          <View key={disciplina.nome} style={styles.card}>
+            <Text style={styles.cardTitle}>{disciplina.nome}</Text>
+            <Text style={styles.cardProgress}>Progresso: {disciplina.progresso}</Text>
+          </View>
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, padding: 24, paddingTop: 60 },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  content: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
   card: {
