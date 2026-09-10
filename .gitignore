@@ -34,10 +34,34 @@ yarn-error.*
 .env
 .env*.local
 
+# Python / FastAPI
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Dados locais e artefatos gerados pelo backend
+backend/.venv*/
+backend/data/*.pdf
+backend/data/*.index.json
+backend/data/catalogo-puds.json
+backend/data/quiz-cache.json
+
+# Logs e arquivos temporários
+*.log
+tmp/
+temp/
+
 # typescript
 *.tsbuildinfo
-
-example
 
 # generated native folders
 /ios

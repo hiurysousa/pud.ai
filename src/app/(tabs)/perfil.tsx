@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useUserData } from '@/contexts/user-data-context';
+import { getLevel } from '@/lib/user-types';
 
 function getInitials(name?: string | null) {
   if (!name) {
@@ -20,8 +22,12 @@ function getInitials(name?: string | null) {
 export default function PerfilScreen() {
   const router = useRouter();
   const { user, logOut } = useAuth();
-  const displayName = user?.displayName ?? 'Estudante';
-  const email = user?.email ?? '';
+  const { profile } = useUserData();
+  const displayName = profile?.displayName ?? user?.displayName ?? 'Estudante';
+  const email = profile?.email ?? user?.email ?? '';
+  const xp = profile?.xp ?? 0;
+  const badges = profile?.badges ?? [];
+  const level = getLevel(xp);
 
   const handleLogout = () => {
     Alert.alert('Sair da conta', 'Deseja encerrar sua sessão?', [
@@ -39,7 +45,7 @@ export default function PerfilScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Seu Perfil</Text>
 
         <View style={styles.avatar}>
@@ -51,37 +57,42 @@ export default function PerfilScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>Nível 5</Text>
+            <Text style={styles.statValue}>Nível {level}</Text>
             <Text style={styles.statLabel}>Nível atual</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>1.920 XP</Text>
+            <Text style={styles.statValue}>{xp} XP</Text>
             <Text style={styles.statLabel}>Experiência</Text>
           </View>
         </View>
 
         <View style={styles.badgeSection}>
           <Text style={styles.sectionTitle}>Conquistas</Text>
-          <Text style={styles.badge}>Primeiro Quiz</Text>
-          <Text style={styles.badge}>Sequência de 3 dias</Text>
+          {badges.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Nenhuma conquista ainda. Elas aparecem aqui depois das suas primeiras sessões de
+              estudo.
+            </Text>
+          ) : (
+            badges.map((badge) => (
+              <Text key={badge} style={styles.badge}>
+                {badge}
+              </Text>
+            ))
+          )}
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  content: {
-    flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 24,
-  },
+  content: { paddingHorizontal: 28, paddingTop: 24, paddingBottom: 24 },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 24 },
   avatar: {
     width: 80,
@@ -116,6 +127,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
   badgeSection: { marginBottom: 32 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 12 },
+  emptyText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
   badge: {
     fontSize: 14,
     color: COLORS.textPrimary,

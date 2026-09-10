@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,17 +12,55 @@ import {
 } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { isValidEmail } from '@/lib/auth-errors';
+import { getGoogleWebClientId } from '@/lib/firebase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle, signInWithGoogleIdToken } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const googleWebClientId = getGoogleWebClientId();
+
+  const [googleRequest, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
+    clientId: googleWebClientId,
+    webClientId: googleWebClientId,
+    iosClientId: googleWebClientId,
+    androidClientId: googleWebClientId,
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') {
+      if (googleResponse?.type === 'error') {
+        Alert.alert('Falha no Google', googleResponse.error?.message ?? 'Não foi possível entrar com Google.');
+      }
+      return;
+    }
+
+    const idToken = googleResponse.params.id_token;
+    if (!idToken) {
+      Alert.alert('Falha no Google', 'O Google não retornou o token de autenticação.');
+      return;
+    }
+
+    setSubmitting(true);
+    signInWithGoogleIdToken(idToken)
+      .then(() => router.replace('/home'))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Não foi possível entrar com Google.';
+        Alert.alert('Falha no Google', message);
+      })
+      .finally(() => setSubmitting(false));
+  }, [googleResponse, router, signInWithGoogleIdToken]);
 
   const handleLogin = async () => {
     const emailDigitado = email.trim().toLowerCase();
@@ -33,6 +71,11 @@ export default function LoginScreen() {
       return;
     }
 
+    if (!isValidEmail(emailDigitado)) {
+      Alert.alert('E-mail inválido', 'Use um e-mail completo, como nome@gmail.com.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       await signIn(emailDigitado, senhaDigitada);
@@ -40,6 +83,33 @@ export default function LoginScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível entrar.';
       Alert.alert('Falha no login', message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setSubmitting(true);
+
+      if (Platform.OS === 'web') {
+        await signInWithGoogle();
+        router.replace('/home');
+        return;
+      }
+
+      if (!googleWebClientId || !googleRequest) {
+        Alert.alert(
+          'Google não configurado',
+          'No Firebase Console, ative Authentication > Google e copie o "Web client ID" para EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID no arquivo .env. Depois reinicie com npx expo start -c.',
+        );
+        return;
+      }
+
+      await promptGoogle();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível entrar com Google.';
+      Alert.alert('Falha no Google', message);
     } finally {
       setSubmitting(false);
     }
@@ -116,8 +186,9 @@ export default function LoginScreen() {
 
         <View style={styles.socialContainer}>
           <TouchableOpacity
-            style={styles.socialButton}
-            onPress={() => Alert.alert('Em breve', 'Login com Google em desenvolvimento.')}
+            style={[styles.socialButton, submitting && styles.primaryButtonDisabled]}
+            onPress={handleGoogleLogin}
+            disabled={submitting}
           >
             <FontAwesome name="google" size={20} color={COLORS.textPrimary} />
             <Text style={styles.socialButtonText}>Google</Text>

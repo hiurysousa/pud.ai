@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { isValidEmail } from '@/lib/auth-errors';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -35,6 +36,11 @@ export default function RegisterScreen() {
 
     if (!nomeDigitado || !emailDigitado || !senhaDigitada || !confirmacaoDigitada) {
       Alert.alert('Campos obrigatórios', 'Preencha todos os campos para criar sua conta.');
+      return;
+    }
+
+    if (!isValidEmail(emailDigitado)) {
+      Alert.alert('E-mail inválido', 'Use um e-mail completo, como nome@gmail.com.');
       return;
     }
 

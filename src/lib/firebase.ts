@@ -1,5 +1,6 @@
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   browserLocalPersistence,
   getAuth,
@@ -7,16 +8,42 @@ import {
   type Auth,
   type Persistence,
 } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
-const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+
+function readEnv(value?: string) {
+  return value?.trim().replace(/^['"]|['"]$/g, '') ?? '';
+}
+
+const extra = (Constants.expoConfig?.extra ?? {}) as {
+  firebase?: {
+    apiKey?: string;
+    authDomain?: string;
+    projectId?: string;
+    storageBucket?: string;
+    messagingSenderId?: string;
+    appId?: string;
+  };
+  googleWebClientId?: string;
 };
+
+const firebaseConfig = {
+  apiKey: readEnv(process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra.firebase?.apiKey),
+  authDomain: readEnv(process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || extra.firebase?.authDomain),
+  projectId: readEnv(process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || extra.firebase?.projectId),
+  storageBucket: readEnv(
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || extra.firebase?.storageBucket,
+  ),
+  messagingSenderId: readEnv(
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || extra.firebase?.messagingSenderId,
+  ),
+  appId: readEnv(process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra.firebase?.appId),
+};
+
+export function getGoogleWebClientId() {
+  return readEnv(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || extra.googleWebClientId);
+}
 
 export function isFirebaseConfigured() {
   return Boolean(
@@ -27,29 +54,58 @@ export function isFirebaseConfigured() {
   );
 }
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
-// Tipos do Firebase omitem o helper nativo; ele existe em runtime no SDK JS.
 const getReactNativePersistence = (
   require('firebase/auth') as {
     getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence;
   }
 ).getReactNativePersistence;
 
-function createAuth(): Auth {
+export function getFirebaseApp(): FirebaseApp {
+  if (getApps().length > 0) {
+    return getApp();
+  }
+
+  if (!isFirebaseConfigured()) {
+    throw new Error(
+      'Firebase não configurado. Copie .env.example para .env, preencha as chaves e reinicie o Expo com npx expo start -c.',
+    );
+  }
+
+  return initializeApp(firebaseConfig);
+}
+
+let authInstance: Auth | null = null;
+
+export function getFirebaseAuth(): Auth {
+  if (authInstance) {
+    return authInstance;
+  }
+
+  const app = getFirebaseApp();
+
   if (Platform.OS === 'web') {
-    const auth = getAuth(app);
-    auth.setPersistence(browserLocalPersistence).catch(() => undefined);
-    return auth;
+    authInstance = getAuth(app);
+    authInstance.setPersistence(browserLocalPersistence).catch(() => undefined);
+    return authInstance;
   }
 
   try {
-    return initializeAuth(app, {
+    authInstance = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
   } catch {
-    return getAuth(app);
+    authInstance = getAuth(app);
   }
+
+  return authInstance;
 }
 
-export const auth = createAuth();
+let firestoreInstance: Firestore | null = null;
+
+export function getFirestoreDb(): Firestore {
+  if (!firestoreInstance) {
+    firestoreInstance = getFirestore(getFirebaseApp());
+  }
+
+  return firestoreInstance;
+}
