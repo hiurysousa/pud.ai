@@ -15,16 +15,20 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/contexts/auth-context';
+import { isValidEmail } from '@/lib/auth-errors';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     const nomeDigitado = name.trim();
     const emailDigitado = email.trim().toLowerCase();
     const senhaDigitada = password.trim();
@@ -32,6 +36,11 @@ export default function RegisterScreen() {
 
     if (!nomeDigitado || !emailDigitado || !senhaDigitada || !confirmacaoDigitada) {
       Alert.alert('Campos obrigatórios', 'Preencha todos os campos para criar sua conta.');
+      return;
+    }
+
+    if (!isValidEmail(emailDigitado)) {
+      Alert.alert('E-mail inválido', 'Use um e-mail completo, como nome@gmail.com.');
       return;
     }
 
@@ -45,11 +54,16 @@ export default function RegisterScreen() {
       return;
     }
 
-    Alert.alert(
-      'Conta criada!',
-      'Seu cadastro foi registrado com sucesso. Faça login para continuar.',
-      [{ text: 'Ir para login', onPress: () => router.replace('/login') }],
-    );
+    try {
+      setSubmitting(true);
+      await signUp(nomeDigitado, emailDigitado, senhaDigitada);
+      router.replace('/home');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível criar a conta.';
+      Alert.alert('Falha no cadastro', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -122,8 +136,14 @@ export default function RegisterScreen() {
               onChangeText={setConfirmPassword}
             />
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleRegister}>
-              <Text style={styles.primaryButtonText}>Criar conta</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, submitting && styles.primaryButtonDisabled]}
+              onPress={handleRegister}
+              disabled={submitting}
+            >
+              <Text style={styles.primaryButtonText}>
+                {submitting ? 'Criando conta...' : 'Criar conta'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -192,6 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 24,
   },
+  primaryButtonDisabled: { opacity: 0.7 },
   primaryButtonText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   footerText: { fontSize: 14, color: COLORS.textSecondary },

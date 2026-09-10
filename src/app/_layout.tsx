@@ -2,6 +2,9 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { AuthProvider } from '@/contexts/auth-context';
+import { UserDataProvider } from '@/contexts/user-data-context';
+
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -10,13 +13,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="forgot-password" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="quiz" />
-    </Stack>
+    <AuthProvider>
+      <UserDataProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="quiz" />
+        </Stack>
+      </UserDataProvider>
+    </AuthProvider>
   );
 }

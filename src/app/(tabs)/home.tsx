@@ -2,32 +2,49 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useAuth } from '@/contexts/auth-context';
+import { useUserData } from '@/contexts/user-data-context';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { disciplinas, profile } = useUserData();
+  const firstName = (profile?.displayName ?? user?.displayName ?? 'Estudante').split(' ')[0];
+  const nextDisciplina = disciplinas[0];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Olá, Estudante!</Text>
+      <Text style={styles.title}>Olá, {firstName}!</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Progresso do PUD: Cálculo I</Text>
-        <Text style={styles.cardSubtitle}>Próxima meta: Limites e Derivadas</Text>
-        <Text style={styles.cardText}>Você está indo super bem! Continue assim.</Text>
-
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/quiz')}>
-          <Text style={styles.buttonText}>Continuar Estudando</Text>
-        </TouchableOpacity>
-      </View>
+      {nextDisciplina ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{nextDisciplina.nome}</Text>
+          <Text style={styles.cardSubtitle}>Progresso: {nextDisciplina.progresso}%</Text>
+          <Text style={styles.cardText}>Continue de onde parou quando o quiz estiver disponível.</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => router.push({ pathname: '/quiz', params: { disciplina: nextDisciplina.nome } })}
+          >
+            <Text style={styles.buttonText}>Estudar agora</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Comece do zero</Text>
+          <Text style={styles.cardText}>
+            Você ainda não tem disciplinas. Adicione a primeira matéria do semestre para acompanhar
+            o progresso.
+          </Text>
+          <TouchableOpacity style={styles.button} onPress={() => router.push('/disciplinas')}>
+            <Text style={styles.buttonText}>Adicionar disciplina</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push('/disciplinas')}
-        >
+        <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/disciplinas')}>
           <Text style={styles.actionText}>Minhas Disciplinas</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/ranking')}>
           <Text style={styles.actionText}>Ver Ranking</Text>
         </TouchableOpacity>
