@@ -1,6 +1,6 @@
 # Backend do PUD.ai
 
-API FastAPI que recebe um PUD em PDF e retorna uma questão de múltipla escolha.
+API FastAPI que gera quizzes a partir do catálogo Markdown dos PUDs.
 
 ## Configuração
 
@@ -12,8 +12,34 @@ py -m venv .venv
 pip install -r requirements.txt
 ```
 
-Preencha `OPENROUTER_API_KEY` em `.env`. Esse arquivo está no `.gitignore`; use
-`.env.example` como referência para ambientes novos.
+Crie uma conta e uma chave em [OpenRouter API Keys](https://openrouter.ai/settings/keys).
+Copie `.env.example` para `.env` e preencha `OPENROUTER_API_KEY`. O arquivo `.env`
+é local e não deve ser enviado ao Git.
+
+Por padrão, o backend usa `nex-agi/nex-n2.5-pro:free`, um modelo gratuito com
+suporte a saída estruturada. O raciocínio do modelo fica desativado para reservar
+o limite de tokens à resposta JSON completa. A rota exige um provedor compatível
+e habilita o reparo de JSON do OpenRouter. O limite e o tempo máximo podem ser
+ajustados com `OPENROUTER_MAX_TOKENS` e `OPENROUTER_TIMEOUT_SECONDS`.
+Se o modelo configurado deixar de estar disponível, o job retorna um erro de
+configuração sem repetir a mesma chamada. Após alterar `OPENROUTER_MODEL` em `.env`,
+reinicie o servidor.
+
+O arquivo `data/catalogo-puds.md` acompanha o projeto e já contém as disciplinas
+necessárias para rodar a API. O PDF original é opcional. Para atualizar o catálogo,
+baixe o [PUD do Bacharelado em Ciência da Computação do IFCE Aracati](https://acervo.ifce.edu.br/aracati/menu/cursos-em-aracati/superiores/ciencia-da-computacao/pdfs),
+salve o PDF textual como `data/puds-bcc-textual.pdf` e execute:
+
+```powershell
+python main.py --indexar-puds
+```
+
+O comando lê `data/puds-bcc-textual.pdf` e gera `data/catalogo-puds.md`, com uma
+seção por disciplina e os conteúdos programáticos organizados em títulos e listas.
+O JSON mantido em `data/quiz-cache.json` é apenas um cache das respostas prontas e não é
+injetado no modelo. O cache é separado por disciplina e nível. Ao gerar um nível novo,
+os enunciados já usados nos outros níveis da mesma disciplina entram numa lista de
+exclusão para evitar questões repetidas ou apenas parafraseadas.
 
 Inicie a API a partir da pasta `backend`:
 
@@ -25,28 +51,28 @@ A documentação interativa ficará em `http://127.0.0.1:8000/docs`.
 
 ## Requisição do Expo
 
-`POST /api/gerar-quiz` como `multipart/form-data`:
-
-- `arquivo`: PDF do PUD;
-- `nivel`: `iniciante`, `intermediário` ou `avançado`.
-
-Resposta:
+O app inicia a geração em `POST /api/solicitar-quiz`, enviando JSON:
 
 ```json
 {
-  "pergunta": "...",
-  "alternativas": ["...", "...", "...", "..."],
-  "correta": "B",
-  "explicacao": "..."
+  "disciplina": "Estrutura de Dados",
+  "nivel": "iniciante"
 }
 ```
 
+A API responde com um identificador de job. O app consulta
+`GET /api/quiz-jobs/{id}` até receber o lote de 10 questões.
+
+Os níveis usam perfis diferentes: iniciante prioriza fundamentos, intermediário exige
+aplicação e comparação, e avançado trabalha análise, decisões e casos complexos. O
+contexto enviado ao provedor é limitado para reduzir latência sem cortar tópicos no
+meio de uma linha.
+
 ## Como o contexto é usado
 
-O `PDFReader` do Agno extrai o texto do PDF enviado. O backend mantém o arquivo
-somente em um arquivo temporário, entrega o conteúdo como contexto da chamada e
-o remove imediatamente após a resposta. O agente recebe instruções para usar
-essa fonte como única referência e o `output_schema` valida o JSON antes de ele
-chegar ao React Native.
+O `PyPDF` extrai os conteúdos programáticos do PDF durante a indexação. O
+backend salva esse catálogo em Markdown e injeta somente a seção da disciplina
+solicitada. O `output_schema` valida o lote retornado antes de ele chegar ao
+React Native.
 
 Para PDFs digitalizados como imagem, será necessário OCR antes da extração.

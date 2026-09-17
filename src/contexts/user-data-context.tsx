@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
@@ -22,7 +23,21 @@ import {
 
 import { useAuth } from '@/contexts/auth-context';
 import { getFirestoreDb } from '@/lib/firebase';
-import { type Disciplina, type RankingEntry, type UserProfile } from '@/lib/user-types';
+import {
+  getQuizReward,
+  type Disciplina,
+  type QuizLevel,
+  type RankingEntry,
+  type UserProfile,
+} from '@/lib/user-types';
+
+type QuizCompletion = {
+  passed: boolean;
+  xpEarned: number;
+  progressEarned: number;
+  totalXp: number;
+  totalProgress: number;
+};
 
 type UserDataContextValue = {
   profile: UserProfile | null;
@@ -31,6 +46,7 @@ type UserDataContextValue = {
   loading: boolean;
   addDisciplina: (nome: string) => Promise<void>;
   removeDisciplina: (id: string) => Promise<void>;
+  completeQuiz: (disciplinaNome: string, level: QuizLevel, correctAnswers: number) => Promise<QuizCompletion>;
 };
 
 const UserDataContext = createContext<UserDataContextValue | undefined>(undefined);
@@ -70,9 +86,51 @@ export function UserDataProvider({ children }: PropsWithChildren) {
 
     const db = getFirestoreDb();
     const userRef = doc(db, 'users', user.uid);
-    const unsubscribers: Array<() => void> = [];
+    const rankingRef = doc(db, 'ranking', user.uid);
+    const unsubscribers: Array<() => void> = [
+      onSnapshot(
+        userRef,
+        (docSnap) => {
+          setProfile(toProfile(docSnap.data(), fallbackName, fallbackEmail));
+        },
+        () => {
+          setProfile(toProfile(undefined, fallbackName, fallbackEmail));
+        },
+      ),
+      onSnapshot(
+        query(collection(db, 'users', user.uid, 'disciplinas'), orderBy('createdAt', 'asc')),
+        (listSnap) => {
+          setDisciplinas(
+            listSnap.docs.map((item) => ({
+              id: item.id,
+              nome: String(item.data().nome ?? ''),
+              progresso: typeof item.data().progresso === 'number' ? item.data().progresso : 0,
+            })),
+          );
+          setLoading(false);
+        },
+        () => {
+          setLoading(false);
+        },
+      ),
+      onSnapshot(
+        query(collection(db, 'ranking'), orderBy('xp', 'desc')),
+        (listSnap) => {
+          setRanking(
+            listSnap.docs.map((item) => ({
+              id: item.id,
+              displayName: String(item.data().displayName ?? 'Estudante'),
+              xp: typeof item.data().xp === 'number' ? item.data().xp : 0,
+            })),
+          );
+        },
+        () => {
+          setRanking([]);
+        },
+      ),
+    ];
 
-    const bootstrap = async () => {
+    const bootstrapProfile = async () => {
       const snapshot = await getDoc(userRef);
       if (!snapshot.exists()) {
         await setDoc(userRef, {
@@ -84,56 +142,20 @@ export function UserDataProvider({ children }: PropsWithChildren) {
         });
       }
 
-      unsubscribers.push(
-        onSnapshot(userRef, (docSnap) => {
-          setProfile(toProfile(docSnap.data(), fallbackName, fallbackEmail));
-        }),
-      );
-
-      unsubscribers.push(
-        onSnapshot(
-          query(collection(db, 'users', user.uid, 'disciplinas'), orderBy('createdAt', 'asc')),
-          (listSnap) => {
-            setDisciplinas(
-              listSnap.docs.map((item) => ({
-                id: item.id,
-                nome: String(item.data().nome ?? ''),
-                progresso: typeof item.data().progresso === 'number' ? item.data().progresso : 0,
-              })),
-            );
-          },
-          () => {
-            setDisciplinas([]);
-          },
-        ),
-      );
-
-      unsubscribers.push(
-        onSnapshot(
-          query(collection(db, 'users'), orderBy('xp', 'desc')),
-          (listSnap) => {
-            setRanking(
-              listSnap.docs.map((item) => ({
-                id: item.id,
-                displayName: String(item.data().displayName ?? 'Estudante'),
-                xp: typeof item.data().xp === 'number' ? item.data().xp : 0,
-              })),
-            );
-            setLoading(false);
-          },
-          () => {
-            setRanking([]);
-            setLoading(false);
-          },
-        ),
-      );
+      const profileData = snapshot.data();
+      await setDoc(
+        rankingRef,
+        {
+          displayName: profileData?.displayName || fallbackName,
+          xp: typeof profileData?.xp === 'number' ? profileData.xp : 0,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ).catch(() => undefined);
     };
 
-    bootstrap().catch(() => {
-      setProfile(toProfile(undefined, fallbackName, fallbackEmail));
-      setDisciplinas([]);
-      setRanking([]);
-      setLoading(false);
+    bootstrapProfile().catch(() => {
+      setProfile((current) => current ?? toProfile(undefined, fallbackName, fallbackEmail));
     });
 
     return () => {
@@ -172,6 +194,74 @@ export function UserDataProvider({ children }: PropsWithChildren) {
     [user],
   );
 
+  const completeQuiz = useCallback(
+    async (disciplinaNome: string, level: QuizLevel, correctAnswers: number) => {
+      if (!user) {
+        throw new Error('Entre na sua conta para salvar o resultado.');
+      }
+
+      const disciplina = disciplinas.find(
+        (item) => item.nome.trim().toLocaleLowerCase('pt-BR') === disciplinaNome.trim().toLocaleLowerCase('pt-BR'),
+      );
+      if (!disciplina) {
+        throw new Error('Essa disciplina não está mais na sua lista.');
+      }
+
+      const reward = getQuizReward(level, correctAnswers);
+      const db = getFirestoreDb();
+      const userRef = doc(db, 'users', user.uid);
+      const rankingRef = doc(db, 'ranking', user.uid);
+      const disciplinaRef = doc(db, 'users', user.uid, 'disciplinas', disciplina.id);
+      const attemptRef = doc(collection(db, 'users', user.uid, 'quizAttempts'));
+
+      const completion = await runTransaction(db, async (transaction) => {
+        const [userSnapshot, disciplinaSnapshot] = await Promise.all([
+          transaction.get(userRef),
+          transaction.get(disciplinaRef),
+        ]);
+
+        const currentXp = typeof userSnapshot.data()?.xp === 'number' ? userSnapshot.data()!.xp : 0;
+        const currentProgress =
+          typeof disciplinaSnapshot.data()?.progresso === 'number'
+            ? disciplinaSnapshot.data()!.progresso
+            : 0;
+        const totalXp = currentXp + reward.xpEarned;
+        const totalProgress = Math.min(100, currentProgress + reward.progressEarned);
+
+        transaction.set(userRef, { xp: totalXp }, { merge: true });
+        transaction.update(disciplinaRef, { progresso: totalProgress });
+
+        return { ...reward, totalXp, totalProgress };
+      });
+
+      await Promise.allSettled([
+        setDoc(
+          rankingRef,
+          {
+            displayName: profile?.displayName || user.displayName || 'Estudante',
+            xp: completion.totalXp,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        ),
+        setDoc(attemptRef, {
+          disciplinaId: disciplina.id,
+          disciplina: disciplina.nome,
+          nivel: level,
+          acertos: correctAnswers,
+          totalQuestoes: 10,
+          aprovado: reward.passed,
+          xpGanho: reward.xpEarned,
+          progressoGanho: reward.progressEarned,
+          createdAt: serverTimestamp(),
+        }),
+      ]);
+
+      return completion;
+    },
+    [disciplinas, profile?.displayName, user],
+  );
+
   const value = useMemo(
     () => ({
       profile,
@@ -180,8 +270,9 @@ export function UserDataProvider({ children }: PropsWithChildren) {
       loading,
       addDisciplina,
       removeDisciplina,
+      completeQuiz,
     }),
-    [profile, disciplinas, ranking, loading, addDisciplina, removeDisciplina],
+    [profile, disciplinas, ranking, loading, addDisciplina, removeDisciplina, completeQuiz],
   );
 
   return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

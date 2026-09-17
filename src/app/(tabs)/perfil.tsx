@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useUserData } from '@/contexts/user-data-context';
-import { getLevel } from '@/lib/user-types';
+import { getLevel, getLevelProgress, XP_PER_LEVEL } from '@/lib/user-types';
 
 function getInitials(name?: string | null) {
   if (!name) {
@@ -28,6 +28,7 @@ export default function PerfilScreen() {
   const xp = profile?.xp ?? 0;
   const badges = profile?.badges ?? [];
   const level = getLevel(xp);
+  const levelProgress = getLevelProgress(xp);
 
   const handleLogout = () => {
     Alert.alert('Sair da conta', 'Deseja encerrar sua sessão?', [
@@ -64,6 +65,17 @@ export default function PerfilScreen() {
             <Text style={styles.statValue}>{xp} XP</Text>
             <Text style={styles.statLabel}>Experiência</Text>
           </View>
+        </View>
+
+        <View style={styles.levelSection}>
+          <View style={styles.levelHeader}>
+            <Text style={styles.sectionTitle}>Progresso do nível {level}</Text>
+            <Text style={styles.levelXp}>{levelProgress.currentLevelXp}/{XP_PER_LEVEL} XP</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${levelProgress.percent}%` }]} />
+          </View>
+          <Text style={styles.levelHint}>Faltam {levelProgress.xpToNextLevel} XP para o nível {level + 1}.</Text>
         </View>
 
         <View style={styles.badgeSection}>
@@ -125,6 +137,12 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 18, fontWeight: 'bold', color: COLORS.primary },
   statLabel: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
+  levelSection: { marginBottom: 28 },
+  levelHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  levelXp: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 12 },
+  progressTrack: { backgroundColor: COLORS.border, borderRadius: 5, height: 10, overflow: 'hidden' },
+  progressFill: { backgroundColor: COLORS.primary, borderRadius: 5, height: '100%' },
+  levelHint: { color: COLORS.textSecondary, fontSize: 12, marginTop: 8 },
   badgeSection: { marginBottom: 32 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 12 },
   emptyText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
