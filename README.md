@@ -118,6 +118,7 @@ Os arquivos `.env`, `backend/.env`, o PDF de origem e o cache de quizzes são lo
 
 ## Equipe
 
+- Davi Witalo Felix da Silva
 - José Guilherme Lima de Carvalho
 - Marcio Hiury de Sousa Barbosa
 
