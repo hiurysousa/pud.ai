@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,20 +12,33 @@ import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { COLORS } from '@/constants/colors';
+import { useUserData } from '@/contexts/user-data-context';
 import { gerarLoteQuiz, type QuestaoQuiz } from '@/lib/quiz-api';
+import { QUIZ_LEVELS, type QuizLevel } from '@/lib/user-types';
 
 const LETRAS = ['A', 'B', 'C', 'D'] as const;
 
 export default function QuizScreen() {
   const router = useRouter();
+  const { completeQuiz } = useUserData();
   const { disciplina } = useLocalSearchParams<{ disciplina?: string }>();
   const [questoes, setQuestoes] = useState<QuestaoQuiz[]>([]);
   const [indice, setIndice] = useState(0);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [nivel, setNivel] = useState('iniciante');
+  const [nivel, setNivel] = useState<QuizLevel>('iniciante');
   const [iniciado, setIniciado] = useState(false);
+  const [acertos, setAcertos] = useState(0);
+  const [salvandoResultado, setSalvandoResultado] = useState(false);
+  const salvandoResultadoRef = useRef(false);
+  const [erroResultado, setErroResultado] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<{
+    passed: boolean;
+    xpEarned: number;
+    progressEarned: number;
+    totalProgress: number;
+  } | null>(null);
 
   const carregarQuiz = useCallback(async () => {
     if (!disciplina) {
@@ -40,6 +54,9 @@ export default function QuizScreen() {
       setQuestoes(lote.questoes);
       setIndice(0);
       setSelecionada(null);
+      setAcertos(0);
+      setResultado(null);
+      setErroResultado(null);
     } catch (error) {
       setErro(error instanceof Error ? error.message : 'Não foi possível preparar o quiz.');
     } finally {
@@ -54,7 +71,7 @@ export default function QuizScreen() {
   if (!iniciado) {
     return <SafeAreaView style={styles.container}><View style={styles.loadingContent}>
       <Text style={styles.loadingTitle}>Escolha o nível</Text><Text style={styles.loadingText}>{disciplina}</Text>
-      <View style={styles.levels}>{['iniciante', 'intermediário', 'avançado'].map((item) => <TouchableOpacity key={item} onPress={() => setNivel(item)} style={[styles.levelButton, nivel === item && styles.levelSelected]}><Text style={styles.levelText}>{item}</Text></TouchableOpacity>)}</View>
+      <View style={styles.levels}>{QUIZ_LEVELS.map((item) => <TouchableOpacity key={item} onPress={() => setNivel(item)} style={[styles.levelButton, nivel === item && styles.levelSelected]}><Text style={styles.levelText}>{item}</Text></TouchableOpacity>)}</View>
       <TouchableOpacity style={styles.primaryButton} onPress={() => setIniciado(true)}><Text style={styles.primaryButtonText}>Gerar quiz</Text></TouchableOpacity>
     </View></SafeAreaView>;
   }
@@ -92,12 +109,78 @@ export default function QuizScreen() {
     );
   }
 
+  if (resultado) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.resultContent}>
+          <View style={[styles.resultIcon, resultado.passed ? styles.resultIconPassed : styles.resultIconRetry]}>
+            <Feather
+              name={resultado.passed ? 'award' : 'book-open'}
+              size={42}
+              color={resultado.passed ? COLORS.primary : COLORS.accent}
+            />
+          </View>
+          <Text style={styles.resultTitle}>{resultado.passed ? 'Quiz concluído!' : 'Continue praticando'}</Text>
+          <Text style={styles.resultScore}>{acertos} de {questoes.length} acertos</Text>
+          <Text style={styles.resultText}>
+            {resultado.passed
+              ? `Você conquistou ${resultado.progressEarned}% de progresso em ${disciplina}.`
+              : 'São necessários 7 acertos para avançar o progresso da disciplina.'}
+          </Text>
+
+          <View style={styles.rewardRow}>
+            <View style={styles.rewardCard}>
+              <Text style={styles.rewardValue}>+{resultado.xpEarned} XP</Text>
+              <Text style={styles.rewardLabel}>Experiência</Text>
+            </View>
+            <View style={styles.rewardCard}>
+              <Text style={styles.rewardValue}>{resultado.totalProgress}%</Text>
+              <Text style={styles.rewardLabel}>Progresso total</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={() => router.back()}>
+            <Text style={styles.primaryButtonText}>Voltar às disciplinas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => {
+              setIniciado(false);
+              setResultado(null);
+              setQuestoes([]);
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Escolher outro nível</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const questao = questoes[indice];
   const finalizado = indice === questoes.length - 1 && selecionada !== null;
 
-  const avancar = () => {
+  const selecionarResposta = (letra: string) => {
+    setSelecionada(letra);
+    if (letra === questao.correta) setAcertos((atual) => atual + 1);
+  };
+
+  const avancar = async () => {
     if (finalizado) {
-      router.back();
+      if (!disciplina || salvandoResultadoRef.current) return;
+
+      try {
+        salvandoResultadoRef.current = true;
+        setSalvandoResultado(true);
+        setErroResultado(null);
+        const completion = await completeQuiz(disciplina, nivel, acertos);
+        setResultado(completion);
+      } catch (error) {
+        setErroResultado(error instanceof Error ? error.message : 'Não foi possível salvar o resultado.');
+      } finally {
+        salvandoResultadoRef.current = false;
+        setSalvandoResultado(false);
+      }
       return;
     }
     setIndice((atual) => atual + 1);
@@ -113,7 +196,11 @@ export default function QuizScreen() {
         <Text style={styles.progress}>Questão {indice + 1} de {questoes.length}</Text>
       </View>
 
-      <View style={styles.content}>
+      <View style={styles.questionProgressTrack}>
+        <View style={[styles.questionProgressFill, { width: `${((indice + 1) / questoes.length) * 100}%` }]} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subject}>{disciplina}</Text>
         <Text style={styles.question}>{questao.pergunta}</Text>
 
@@ -135,7 +222,7 @@ export default function QuizScreen() {
                 key={letra}
                 style={[styles.option, status]}
                 disabled={selecionada !== null}
-                onPress={() => setSelecionada(letra)}
+                onPress={() => selecionarResposta(letra)}
               >
                 <Text style={styles.optionLetter}>{letra}</Text>
                 <Text style={styles.optionText}>{alternativa}</Text>
@@ -153,14 +240,18 @@ export default function QuizScreen() {
           </View>
         )}
 
+        {erroResultado && <Text style={styles.resultError}>{erroResultado}</Text>}
+
         <TouchableOpacity
           style={[styles.primaryButton, !selecionada && styles.primaryButtonDisabled]}
-          disabled={!selecionada}
+          disabled={!selecionada || salvandoResultado}
           onPress={avancar}
         >
-          <Text style={styles.primaryButtonText}>{finalizado ? 'Finalizar quiz' : 'Próxima questão'}</Text>
+          <Text style={styles.primaryButtonText}>
+            {salvandoResultado ? 'Salvando resultado...' : finalizado ? 'Ver meu resultado' : 'Próxima questão'}
+          </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -169,7 +260,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 18, padding: 24, paddingBottom: 10 },
   progress: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
-  content: { flex: 1, padding: 24, paddingTop: 16 },
+  questionProgressTrack: { backgroundColor: COLORS.border, height: 5, marginHorizontal: 24, overflow: 'hidden' },
+  questionProgressFill: { backgroundColor: COLORS.primary, height: '100%' },
+  content: { flexGrow: 1, padding: 24, paddingTop: 16 },
   subject: { color: COLORS.primary, fontSize: 14, fontWeight: '700', marginBottom: 10 },
   question: { color: COLORS.textPrimary, fontSize: 23, fontWeight: 'bold', lineHeight: 31, marginBottom: 28 },
   options: { gap: 12 },
@@ -196,6 +289,18 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: COLORS.background, fontSize: 16, fontWeight: 'bold' },
   secondaryButton: { alignItems: 'center', padding: 14 },
   secondaryButtonText: { color: COLORS.textSecondary, fontWeight: '600' },
+  resultContent: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 },
+  resultIcon: { alignItems: 'center', borderRadius: 45, height: 90, justifyContent: 'center', width: 90 },
+  resultIconPassed: { backgroundColor: COLORS.lightGreen },
+  resultIconRetry: { backgroundColor: '#FFF7E6' },
+  resultTitle: { color: COLORS.textPrimary, fontSize: 25, fontWeight: 'bold', marginTop: 20 },
+  resultScore: { color: COLORS.primary, fontSize: 22, fontWeight: '800', marginTop: 8 },
+  resultText: { color: COLORS.textSecondary, fontSize: 15, lineHeight: 22, marginTop: 10, textAlign: 'center' },
+  rewardRow: { flexDirection: 'row', gap: 12, marginVertical: 28, width: '100%' },
+  rewardCard: { alignItems: 'center', backgroundColor: COLORS.inputBackground, borderColor: COLORS.border, borderRadius: 12, borderWidth: 1, flex: 1, padding: 16 },
+  rewardValue: { color: COLORS.primary, fontSize: 18, fontWeight: 'bold' },
+  rewardLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  resultError: { color: '#B91C1C', fontSize: 13, marginTop: 12, textAlign: 'center' },
   loadingContent: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 },
   loadingIcon: { alignItems: 'center', backgroundColor: COLORS.lightGreen, borderRadius: 45, height: 90, justifyContent: 'center', marginBottom: 24, width: 90 },
   loadingTitle: { color: COLORS.textPrimary, fontSize: 22, fontWeight: 'bold', marginTop: 20, textAlign: 'center' },

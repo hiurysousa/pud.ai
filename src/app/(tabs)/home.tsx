@@ -20,6 +20,9 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{nextDisciplina.nome}</Text>
           <Text style={styles.cardSubtitle}>Progresso: {nextDisciplina.progresso}%</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${nextDisciplina.progresso}%` }]} />
+          </View>
           <Text style={styles.cardText}>Continue de onde parou quando o quiz estiver disponível.</Text>
           <TouchableOpacity
             style={styles.button}
@@ -67,6 +70,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 5 },
   cardSubtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 8 },
+  progressTrack: { backgroundColor: COLORS.border, borderRadius: 4, height: 8, marginBottom: 12, overflow: 'hidden' },
+  progressFill: { backgroundColor: COLORS.primary, borderRadius: 4, height: '100%' },
   cardText: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 15 },
   button: { backgroundColor: COLORS.primary, padding: 12, borderRadius: 8, alignItems: 'center' },
   buttonText: { color: COLORS.background, fontWeight: 'bold' },
