@@ -1,4 +1,12 @@
-import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import {
+  ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
@@ -6,7 +14,7 @@ import { useUserData } from '@/contexts/user-data-context';
 
 export default function RankingScreen() {
   const { user } = useAuth();
-  const { ranking } = useUserData();
+  const { ranking, rankingLoading, rankingError, retryRanking } = useUserData();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -14,7 +22,22 @@ export default function RankingScreen() {
         <Text style={styles.title}>Ranking</Text>
         <Text style={styles.subtitle}>O XP sobe conforme você estuda. Contas novas começam em 0.</Text>
 
-        {ranking.length === 0 ? (
+        {rankingError ? (
+          <View style={[styles.statusCard, styles.errorCard]}>
+            <Text style={styles.emptyTitle}>Não foi possível carregar o Ranking</Text>
+            <Text style={styles.emptyText}>{rankingError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={retryRanking}>
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {rankingLoading && ranking.length === 0 ? (
+          <View style={styles.statusCard}>
+            <ActivityIndicator color={COLORS.primary} />
+            <Text style={styles.loadingText}>Sincronizando Ranking...</Text>
+          </View>
+        ) : rankingError && ranking.length === 0 ? null : ranking.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>Ninguém no ranking ainda</Text>
             <Text style={styles.emptyText}>
@@ -47,6 +70,26 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 28, paddingTop: 24, paddingBottom: 24 },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
+  statusCard: {
+    alignItems: 'center',
+    backgroundColor: COLORS.inputBackground,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 16,
+  },
+  errorCard: { alignItems: 'flex-start' },
+  loadingText: { color: COLORS.textSecondary, fontSize: 14, marginTop: 10 },
+  retryButton: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    marginTop: 14,
+    padding: 12,
+  },
+  retryButtonText: { color: COLORS.background, fontSize: 14, fontWeight: 'bold' },
   emptyCard: {
     backgroundColor: COLORS.inputBackground,
     padding: 16,

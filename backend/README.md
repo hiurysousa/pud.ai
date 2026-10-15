@@ -16,14 +16,15 @@ Crie uma conta e uma chave em [OpenRouter API Keys](https://openrouter.ai/settin
 Copie `.env.example` para `.env` e preencha `OPENROUTER_API_KEY`. O arquivo `.env`
 é local e não deve ser enviado ao Git.
 
-Por padrão, o backend usa `nex-agi/nex-n2.5-pro:free`, um modelo gratuito com
-suporte a saída estruturada. O raciocínio do modelo fica desativado para reservar
-o limite de tokens à resposta JSON completa. A rota exige um provedor compatível
-e habilita o reparo de JSON do OpenRouter. O limite e o tempo máximo podem ser
-ajustados com `OPENROUTER_MAX_TOKENS` e `OPENROUTER_TIMEOUT_SECONDS`.
-Se o modelo configurado deixar de estar disponível, o job retorna um erro de
-configuração sem repetir a mesma chamada. Após alterar `OPENROUTER_MODEL` em `.env`,
-reinicie o servidor.
+Por padrão, o backend usa `openrouter/free`, o roteador gratuito do OpenRouter. Ele
+seleciona a cada chamada um modelo gratuito compatível com os recursos exigidos,
+inclusive modo JSON, evitando depender de um único modelo temporário. A configuração
+não força nem bloqueia o modo de raciocínio, pois alguns modelos do roteador o exigem.
+O resultado é validado localmente contra o esquema completo antes de entrar no cache
+ou chegar ao app. Se um endpoint gratuito estiver momentaneamente incompatível, a API
+tenta outra rota do mesmo roteador antes de devolver erro. O limite e o tempo máximo podem ser ajustados com
+`OPENROUTER_MAX_TOKENS` e `OPENROUTER_TIMEOUT_SECONDS`. Após alterar
+`OPENROUTER_MODEL` em `.env`, reinicie o servidor.
 
 O arquivo `data/catalogo-puds.md` acompanha o projeto e já contém as disciplinas
 necessárias para rodar a API. O PDF original é opcional. Para atualizar o catálogo,
@@ -37,9 +38,10 @@ python main.py --indexar-puds
 O comando lê `data/puds-bcc-textual.pdf` e gera `data/catalogo-puds.md`, com uma
 seção por disciplina e os conteúdos programáticos organizados em títulos e listas.
 O JSON mantido em `data/quiz-cache.json` é apenas um cache das respostas prontas e não é
-injetado no modelo. O cache é separado por disciplina e nível. Ao gerar um nível novo,
-os enunciados já usados nos outros níveis da mesma disciplina entram numa lista de
-exclusão para evitar questões repetidas ou apenas parafraseadas.
+injetado no modelo. O cache é separado por disciplina e nível. Entradas antigas que
+não contenham quatro alternativas completas são descartadas automaticamente. Ao gerar
+um nível novo, os enunciados já usados nos outros níveis da mesma disciplina entram
+numa lista de exclusão para evitar questões repetidas ou apenas parafraseadas.
 
 Inicie a API a partir da pasta `backend`:
 

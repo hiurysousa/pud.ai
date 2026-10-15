@@ -91,6 +91,21 @@ class QuizGerado(BaseModel):
             raise ValueError("correta deve ser uma das letras A, B, C ou D")
         return letra
 
+    @field_validator("alternativas")
+    @classmethod
+    def rejeitar_alternativas_sem_conteudo(cls, value: list[str]) -> list[str]:
+        placeholders = [
+            re.fullmatch(
+                r"(?:(?:ALTERNATIVA|OPCAO|RESPOSTA)\s*)?[ABCD](?:\s*[).:\-])?",
+                normalizar(alternativa),
+            )
+            is not None
+            for alternativa in value
+        ]
+        if all(placeholders):
+            raise ValueError("as alternativas devem conter respostas completas, não apenas rótulos A-D")
+        return value
+
 
 class LoteQuiz(BaseModel):
     disciplina: str
@@ -406,7 +421,7 @@ def criar_agente_professor() -> Agent:
 
     return Agent(
         model=OpenRouter(
-            id=os.getenv("OPENROUTER_MODEL", "nex-agi/nex-n2.5-pro:free"),
+            id=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
             api_key=api_key,
             temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.35")),
             max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "5000")),
@@ -415,8 +430,6 @@ def criar_agente_professor() -> Agent:
             strict_output=True,
             extra_body={
                 "provider": {"require_parameters": True},
-                "plugins": [{"id": "response-healing"}],
-                "reasoning": {"enabled": False},
             },
         ),
         output_schema=LoteQuiz,
@@ -434,8 +447,9 @@ def criar_agente_professor() -> Agent:
             "A explicação deve ensinar brevemente o conceito cobrado, sem citar a origem dos temas.",
             "Não exponha raciocínio, plano de resposta, análise ou texto introdutório.",
             "Não analise nem enumere as perguntas bloqueadas; use-as apenas como restrição silenciosa.",
-            'Retorne somente JSON válido neste formato: {"disciplina":"nome da disciplina","questoes":[{"pergunta":"texto","alternativas":["A","B","C","D"],"correta":"A","explicacao":"texto"}]}.',
+            'Retorne somente JSON válido neste formato: {"disciplina":"nome da disciplina","questoes":[{"pergunta":"texto da pergunta","alternativas":["resposta completa da alternativa A","resposta completa da alternativa B","resposta completa da alternativa C","resposta completa da alternativa D"],"correta":"A","explicacao":"texto da explicação"}]}.',
             "A chave questoes deve conter exatamente 10 itens e cada item deve ter exatamente quatro alternativas.",
+            "Cada alternativa deve conter uma resposta completa e plausível; nunca use apenas A, B, C, D ou rótulos equivalentes como conteúdo.",
             "Na chave correta, retorne exclusivamente uma das letras A, B, C ou D; nunca repita o texto da alternativa.",
             "A alternativa indicada em correta deve concordar com a explicação apresentada.",
         ],
@@ -475,6 +489,19 @@ def salvar_lote_no_cache(chave: str, lote: LoteQuiz) -> None:
         except (OSError, json.JSONDecodeError):
             cache = {}
         cache[chave] = lote.model_dump()
+        QUIZ_CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+
+
+def remover_lote_invalido_do_cache(chave: str) -> None:
+    """Remove definitivamente uma entrada antiga que não passa mais pela validação."""
+    with CACHE_FILE_LOCK:
+        try:
+            cache = json.loads(QUIZ_CACHE_PATH.read_text(encoding="utf-8")) if QUIZ_CACHE_PATH.is_file() else {}
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(cache, dict) or chave not in cache:
+            return
+        cache.pop(chave, None)
         QUIZ_CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
 
@@ -536,6 +563,7 @@ def _gerar_quiz(pedido: GerarQuizRequest) -> LoteQuiz:
             return LoteQuiz.model_validate(cache[chave_cache])
     except ValidationError:
         cache.pop(chave_cache, None)
+        remover_lote_invalido_do_cache(chave_cache)
 
     usadas = perguntas_anteriores(cache, pedido.disciplina)
     bloco_exclusoes = ""
@@ -557,9 +585,11 @@ def _gerar_quiz(pedido: GerarQuizRequest) -> LoteQuiz:
         f"{bloco_exclusoes}"
     )
 
+    modelo_id = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+    max_tentativas = 4 if modelo_id == "openrouter/free" else 2
     ultimo_erro: Exception | None = None
     houve_falha_do_provedor = False
-    for tentativa in range(2):
+    for tentativa in range(max_tentativas):
         prompt_da_tentativa = prompt
         if tentativa > 0:
             prompt_da_tentativa += (
@@ -570,6 +600,9 @@ def _gerar_quiz(pedido: GerarQuizRequest) -> LoteQuiz:
         resposta = criar_agente_professor().run(prompt_da_tentativa)
         if resposta.status == RunStatus.error:
             logger.error("Falha do provedor de IA: %s", resposta.content)
+            if modelo_id == "openrouter/free" and tentativa + 1 < max_tentativas:
+                houve_falha_do_provedor = True
+                continue
             detalhe = (
                 "O modelo de IA configurado está indisponível no OpenRouter. "
                 "Confira OPENROUTER_MODEL no servidor."

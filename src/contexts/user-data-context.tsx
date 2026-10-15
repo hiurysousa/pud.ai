@@ -3,13 +3,11 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
 } from 'firebase/firestore';
 import {
   createContext,
@@ -23,6 +21,7 @@ import {
 
 import { useAuth } from '@/contexts/auth-context';
 import { getFirestoreDb } from '@/lib/firebase';
+import { ensureUserDocuments, getUserDataErrorMessage } from '@/lib/user-profile';
 import {
   getQuizReward,
   type Disciplina,
@@ -44,6 +43,9 @@ type UserDataContextValue = {
   disciplinas: Disciplina[];
   ranking: RankingEntry[];
   loading: boolean;
+  rankingLoading: boolean;
+  rankingError: string | null;
+  retryRanking: () => void;
   addDisciplina: (nome: string) => Promise<void>;
   removeDisciplina: (id: string) => Promise<void>;
   completeQuiz: (disciplinaNome: string, level: QuizLevel, correctAnswers: number) => Promise<QuizCompletion>;
@@ -70,6 +72,9 @@ export function UserDataProvider({ children }: PropsWithChildren) {
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rankingLoading, setRankingLoading] = useState(true);
+  const [rankingError, setRankingError] = useState<string | null>(null);
+  const [rankingRetryKey, setRankingRetryKey] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -77,16 +82,35 @@ export function UserDataProvider({ children }: PropsWithChildren) {
       setDisciplinas([]);
       setRanking([]);
       setLoading(false);
+      setRankingLoading(false);
+      setRankingError(null);
       return;
     }
 
     const fallbackName = user.displayName ?? 'Estudante';
     const fallbackEmail = user.email ?? '';
     setLoading(true);
+    setRankingLoading(true);
+    setRankingError(null);
 
     const db = getFirestoreDb();
     const userRef = doc(db, 'users', user.uid);
-    const rankingRef = doc(db, 'ranking', user.uid);
+    let active = true;
+    let profileProvisioned = false;
+    let rankingSnapshotReceived = false;
+    let rankingListenerFailed = false;
+
+    const finishRankingLoading = () => {
+      if (
+        active &&
+        profileProvisioned &&
+        rankingSnapshotReceived &&
+        !rankingListenerFailed
+      ) {
+        setRankingLoading(false);
+      }
+    };
+
     const unsubscribers: Array<() => void> = [
       onSnapshot(
         userRef,
@@ -116,6 +140,10 @@ export function UserDataProvider({ children }: PropsWithChildren) {
       onSnapshot(
         query(collection(db, 'ranking'), orderBy('xp', 'desc')),
         (listSnap) => {
+          if (!active) {
+            return;
+          }
+
           setRanking(
             listSnap.docs.map((item) => ({
               id: item.id,
@@ -123,44 +151,54 @@ export function UserDataProvider({ children }: PropsWithChildren) {
               xp: typeof item.data().xp === 'number' ? item.data().xp : 0,
             })),
           );
+          rankingSnapshotReceived = true;
+          finishRankingLoading();
         },
-        () => {
-          setRanking([]);
+        (error) => {
+          if (!active) {
+            return;
+          }
+
+          rankingListenerFailed = true;
+          setRankingError(getUserDataErrorMessage(error));
+          setRankingLoading(false);
         },
       ),
     ];
 
-    const bootstrapProfile = async () => {
-      const snapshot = await getDoc(userRef);
-      if (!snapshot.exists()) {
-        await setDoc(userRef, {
-          displayName: fallbackName,
-          email: fallbackEmail,
-          xp: 0,
-          badges: [],
-          createdAt: serverTimestamp(),
-        });
-      }
+    ensureUserDocuments(user)
+      .then(() => {
+        if (!active) {
+          return;
+        }
 
-      const profileData = snapshot.data();
-      await setDoc(
-        rankingRef,
-        {
-          displayName: profileData?.displayName || fallbackName,
-          xp: typeof profileData?.xp === 'number' ? profileData.xp : 0,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ).catch(() => undefined);
-    };
+        profileProvisioned = true;
+        finishRankingLoading();
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
 
-    bootstrapProfile().catch(() => {
-      setProfile((current) => current ?? toProfile(undefined, fallbackName, fallbackEmail));
-    });
+        setProfile((current) => current ?? toProfile(undefined, fallbackName, fallbackEmail));
+        setRankingError(getUserDataErrorMessage(error));
+        setRankingLoading(false);
+      });
 
     return () => {
+      active = false;
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
+  }, [rankingRetryKey, user]);
+
+  const retryRanking = useCallback(() => {
+    if (!user) {
+      return;
+    }
+
+    setRankingError(null);
+    setRankingLoading(true);
+    setRankingRetryKey((current) => current + 1);
   }, [user]);
 
   const addDisciplina = useCallback(
@@ -220,6 +258,13 @@ export function UserDataProvider({ children }: PropsWithChildren) {
           transaction.get(disciplinaRef),
         ]);
 
+        if (!userSnapshot.exists()) {
+          throw new Error('Seu perfil ainda está sendo preparado. Tente novamente em instantes.');
+        }
+        if (!disciplinaSnapshot.exists()) {
+          throw new Error('Essa disciplina não está mais na sua lista.');
+        }
+
         const currentXp = typeof userSnapshot.data()?.xp === 'number' ? userSnapshot.data()!.xp : 0;
         const currentProgress =
           typeof disciplinaSnapshot.data()?.progresso === 'number'
@@ -227,24 +272,19 @@ export function UserDataProvider({ children }: PropsWithChildren) {
             : 0;
         const totalXp = currentXp + reward.xpEarned;
         const totalProgress = Math.min(100, currentProgress + reward.progressEarned);
+        const displayName =
+          typeof userSnapshot.data().displayName === 'string' && userSnapshot.data().displayName.trim()
+            ? userSnapshot.data().displayName.trim()
+            : user.displayName || 'Estudante';
 
         transaction.set(userRef, { xp: totalXp }, { merge: true });
         transaction.update(disciplinaRef, { progresso: totalProgress });
-
-        return { ...reward, totalXp, totalProgress };
-      });
-
-      await Promise.allSettled([
-        setDoc(
-          rankingRef,
-          {
-            displayName: profile?.displayName || user.displayName || 'Estudante',
-            xp: completion.totalXp,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        ),
-        setDoc(attemptRef, {
+        transaction.set(rankingRef, {
+          displayName,
+          xp: totalXp,
+          updatedAt: serverTimestamp(),
+        });
+        transaction.set(attemptRef, {
           disciplinaId: disciplina.id,
           disciplina: disciplina.nome,
           nivel: level,
@@ -254,12 +294,14 @@ export function UserDataProvider({ children }: PropsWithChildren) {
           xpGanho: reward.xpEarned,
           progressoGanho: reward.progressEarned,
           createdAt: serverTimestamp(),
-        }),
-      ]);
+        });
+
+        return { ...reward, totalXp, totalProgress };
+      });
 
       return completion;
     },
-    [disciplinas, profile?.displayName, user],
+    [disciplinas, user],
   );
 
   const value = useMemo(
@@ -268,11 +310,25 @@ export function UserDataProvider({ children }: PropsWithChildren) {
       disciplinas,
       ranking,
       loading,
+      rankingLoading,
+      rankingError,
+      retryRanking,
       addDisciplina,
       removeDisciplina,
       completeQuiz,
     }),
-    [profile, disciplinas, ranking, loading, addDisciplina, removeDisciplina, completeQuiz],
+    [
+      profile,
+      disciplinas,
+      ranking,
+      loading,
+      rankingLoading,
+      rankingError,
+      retryRanking,
+      addDisciplina,
+      removeDisciplina,
+      completeQuiz,
+    ],
   );
 
   return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;

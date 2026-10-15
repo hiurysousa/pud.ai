@@ -62,7 +62,7 @@ Crie sua própria conta de usuário no app. Usando o Firebase oficial, contas, p
 ## 3. Criar a chave do OpenRouter
 
 1. Crie uma conta no [OpenRouter](https://openrouter.ai/) e acesse [API Keys](https://openrouter.ai/settings/keys).
-2. Crie uma chave para este projeto e copie-a. O modelo padrão `nex-agi/nex-n2.5-pro:free` é gratuito enquanto o provedor o mantiver disponível, mas possui limites de uso; **não é necessário adicionar créditos para começar com ele**.
+2. Crie uma chave para este projeto e copie-a. O modelo padrão `openrouter/free` encaminha as solicitações para modelos gratuitos compatíveis disponíveis no momento, mas possui limites de uso; **não é necessário adicionar créditos para começar com ele**.
 3. Copie `backend/.env.example` para `backend/.env` e substitua apenas o valor de `OPENROUTER_API_KEY`. O arquivo `backend/.env` é local e não deve ser enviado ao Git.
 
 ```powershell

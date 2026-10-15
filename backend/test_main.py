@@ -68,6 +68,17 @@ AVALIAÇÃO Prova escrita
 
 
 class QuizGeradoTests(unittest.TestCase):
+    def test_rejeita_alternativas_que_sao_apenas_rotulos(self) -> None:
+        with self.assertRaises(ValueError):
+            QuizGerado.model_validate(
+                {
+                    "pergunta": "O que caracteriza a inteligência computacional?",
+                    "alternativas": ["A", "B", "C", "D"],
+                    "correta": "A",
+                    "explicacao": "Uma explicação que antes escondia o cache defeituoso.",
+                }
+            )
+
     def test_converte_texto_da_resposta_correta_em_letra(self) -> None:
         questao = QuizGerado.model_validate(
             {
@@ -188,8 +199,21 @@ class QuizGeradoTests(unittest.TestCase):
         self.assertIsNone(agente.model.reasoning_effort)
         self.assertTrue(agente.model.strict_output)
         self.assertEqual(agente.model.extra_body["provider"]["require_parameters"], True)
-        self.assertEqual(agente.model.extra_body["plugins"], [{"id": "response-healing"}])
-        self.assertEqual(agente.model.extra_body["reasoning"], {"enabled": False})
+        self.assertNotIn("plugins", agente.model.extra_body)
+        self.assertNotIn("reasoning", agente.model.extra_body)
+        self.assertTrue(agente.structured_outputs)
+
+    def test_agente_usa_roteador_gratuito_por_padrao(self) -> None:
+        configuracao = {
+            "OPENROUTER_API_KEY": "chave-de-teste",
+            "OPENROUTER_MAX_TOKENS": "5000",
+            "OPENROUTER_TIMEOUT_SECONDS": "60",
+        }
+
+        with patch.dict(os.environ, configuracao, clear=True):
+            agente = criar_agente_professor()
+
+        self.assertEqual(agente.model.id, "openrouter/free")
 
     def test_erro_de_modelo_indisponivel_nao_repete_a_chamada(self) -> None:
         resposta = SimpleNamespace(
@@ -199,7 +223,8 @@ class QuizGeradoTests(unittest.TestCase):
         agente = SimpleNamespace(run=lambda _prompt: resposta)
         pedido = GerarQuizRequest(disciplina="Estrutura de Dados", nivel="iniciante")
 
-        with patch("backend.main.localizar_topicos", return_value="1. Listas"), \
+        with patch.dict(os.environ, {"OPENROUTER_MODEL": "modelo/fixo:free"}), \
+                patch("backend.main.localizar_topicos", return_value="1. Listas"), \
                 patch("backend.main.carregar_cache_quiz", return_value={}), \
                 patch("backend.main.criar_agente_professor", return_value=agente) as criar:
             with self.assertRaises(HTTPException) as erro:
@@ -208,6 +233,38 @@ class QuizGeradoTests(unittest.TestCase):
         self.assertEqual(erro.exception.status_code, 503)
         self.assertIn("OPENROUTER_MODEL", erro.exception.detail)
         criar.assert_called_once()
+
+    def test_roteador_gratuito_tenta_outro_endpoint_apos_erro(self) -> None:
+        questoes = [
+            {
+                "pergunta": f"Pergunta inédita número {indice}?",
+                "alternativas": ["Primeira resposta", "Segunda resposta", "Terceira resposta", "Quarta resposta"],
+                "correta": "A",
+                "explicacao": "A primeira resposta explica corretamente o conceito.",
+            }
+            for indice in range(10)
+        ]
+        respostas = iter(
+            [
+                SimpleNamespace(status=RunStatus.error, content="Provider returned error"),
+                SimpleNamespace(
+                    status=RunStatus.completed,
+                    content={"disciplina": "Estrutura de Dados", "questoes": questoes},
+                ),
+            ]
+        )
+        agente = SimpleNamespace(run=lambda _prompt: next(respostas))
+        pedido = GerarQuizRequest(disciplina="Estrutura de Dados", nivel="iniciante")
+
+        with patch.dict(os.environ, {"OPENROUTER_MODEL": "openrouter/free"}), \
+                patch("backend.main.localizar_topicos", return_value="1. Listas"), \
+                patch("backend.main.carregar_cache_quiz", return_value={}), \
+                patch("backend.main.salvar_lote_no_cache"), \
+                patch("backend.main.criar_agente_professor", return_value=agente) as criar:
+            lote = _gerar_quiz(pedido)
+
+        self.assertEqual(len(lote.questoes), 10)
+        self.assertEqual(criar.call_count, 2)
 
 
 if __name__ == "__main__":

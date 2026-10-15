@@ -10,6 +10,21 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function validRankingEntry(userId) {
+      let userAfter = getAfter(/databases/$(database)/documents/users/$(userId));
+      return request.resource.data.keys().hasAll(['displayName', 'xp', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['displayName', 'xp', 'updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.xp is number
+        && request.resource.data.xp >= 0
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.updatedAt == request.time
+        && userAfter.data.displayName == request.resource.data.displayName
+        && userAfter.data.xp == request.resource.data.xp;
+    }
+
     match /users/{userId} {
       allow read, create, update, delete: if isOwner(userId);
 
@@ -26,11 +41,8 @@ service cloud.firestore {
     match /ranking/{userId} {
       allow read: if signedIn();
       allow create, update: if isOwner(userId)
-        && request.resource.data.keys().hasOnly(['displayName', 'xp', 'updatedAt'])
-        && request.resource.data.displayName is string
-        && request.resource.data.xp is number
-        && request.resource.data.xp >= 0;
-      allow delete: if isOwner(userId);
+        && validRankingEntry(userId);
+      allow delete: if false;
     }
   }
 }

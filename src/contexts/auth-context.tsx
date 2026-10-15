@@ -21,6 +21,7 @@ import {
 
 import { getAuthErrorMessage } from '@/lib/auth-errors';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { ensureUserDocuments, getUserDataErrorMessage } from '@/lib/user-profile';
 
 type AuthContextValue = {
   user: User | null;
@@ -75,14 +76,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
       async signUp(name, email, password) {
         ensureFirebase();
+        let createdUser: User;
+
         try {
           const auth = getFirebaseAuth();
           const credential = await createUserWithEmailAndPassword(auth, email, password);
           await updateProfile(credential.user, { displayName: name });
           await credential.user.reload();
-          setUser(auth.currentUser);
+          createdUser = credential.user;
         } catch (error) {
           throw new Error(getAuthErrorMessage(error));
+        }
+
+        try {
+          await ensureUserDocuments(createdUser, name);
+          setUser(createdUser);
+        } catch (error) {
+          throw new Error(
+            `Sua conta foi criada, mas o perfil não terminou de sincronizar. Entre com o e-mail cadastrado para tentar novamente. ${getUserDataErrorMessage(error)}`,
+          );
         }
       },
       async signInWithGoogle() {
