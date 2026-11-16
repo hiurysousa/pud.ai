@@ -69,3 +69,8 @@ temp/
 # generated native folders
 /ios
 /android
+
+# Builds e apresentacoes locais
+.codex-build/
+output/
+mapa-do-projeto.html
