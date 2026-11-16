@@ -10,11 +10,18 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { COLORS } from '@/constants/colors';
 import { useUserData } from '@/contexts/user-data-context';
 import { gerarLoteQuiz, type QuestaoQuiz } from '@/lib/quiz-api';
-import { QUIZ_LEVELS, type QuizLevel } from '@/lib/user-types';
+import { ACHIEVEMENT_DETAILS, CONSISTENCY_BADGE, QUIZ_LEVELS, type QuizLevel } from '@/lib/user-types';
 
 const LETRAS = ['A', 'B', 'C', 'D'] as const;
 
@@ -38,7 +45,19 @@ export default function QuizScreen() {
     xpEarned: number;
     progressEarned: number;
     totalProgress: number;
+    newBadges: string[];
   } | null>(null);
+  const achievementScale = useSharedValue(0.75);
+  const achievementAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: achievementScale.value }],
+  }));
+
+  useEffect(() => {
+    if (resultado?.newBadges.includes(CONSISTENCY_BADGE)) {
+      achievementScale.value = 0.75;
+      achievementScale.value = withSequence(withSpring(1.12), withTiming(1, { duration: 180 }));
+    }
+  }, [achievementScale, resultado]);
 
   const carregarQuiz = useCallback(async () => {
     if (!disciplina) {
@@ -138,6 +157,21 @@ export default function QuizScreen() {
               <Text style={styles.rewardLabel}>Progresso total</Text>
             </View>
           </View>
+
+          {resultado.newBadges.includes(CONSISTENCY_BADGE) && (
+            <Animated.View style={[styles.achievementUnlocked, achievementAnimatedStyle]}>
+              <View style={styles.achievementIcon}>
+                <Feather name="award" size={28} color={COLORS.accent} />
+              </View>
+              <View style={styles.achievementCopy}>
+                <Text style={styles.achievementEyebrow}>NOVA CONQUISTA</Text>
+                <Text style={styles.achievementTitle}>{ACHIEVEMENT_DETAILS[CONSISTENCY_BADGE].title}</Text>
+                <Text style={styles.achievementDescription}>
+                  {ACHIEVEMENT_DETAILS[CONSISTENCY_BADGE].description}
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
           <TouchableOpacity style={styles.primaryButton} onPress={() => router.back()}>
             <Text style={styles.primaryButtonText}>Voltar às disciplinas</Text>
@@ -300,6 +334,29 @@ const styles = StyleSheet.create({
   rewardCard: { alignItems: 'center', backgroundColor: COLORS.inputBackground, borderColor: COLORS.border, borderRadius: 12, borderWidth: 1, flex: 1, padding: 16 },
   rewardValue: { color: COLORS.primary, fontSize: 18, fontWeight: 'bold' },
   rewardLabel: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  achievementUnlocked: {
+    alignItems: 'center',
+    backgroundColor: '#FFF7E6',
+    borderColor: '#FCD34D',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: 20,
+    padding: 14,
+  },
+  achievementIcon: {
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 48,
+  },
+  achievementCopy: { flex: 1 },
+  achievementEyebrow: { color: '#B45309', fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
+  achievementTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: 'bold', marginBottom: 2 },
+  achievementDescription: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17 },
   resultError: { color: '#B91C1C', fontSize: 13, marginTop: 12, textAlign: 'center' },
   loadingContent: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 },
   loadingIcon: { alignItems: 'center', backgroundColor: COLORS.lightGreen, borderRadius: 45, height: 90, justifyContent: 'center', marginBottom: 24, width: 90 },

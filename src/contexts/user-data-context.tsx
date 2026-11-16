@@ -3,6 +3,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -23,6 +25,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { getFirestoreDb } from '@/lib/firebase';
 import { ensureUserDocuments, getUserDataErrorMessage } from '@/lib/user-profile';
 import {
+  CONSISTENCY_BADGE,
   getQuizReward,
   type Disciplina,
   type QuizLevel,
@@ -36,6 +39,7 @@ type QuizCompletion = {
   progressEarned: number;
   totalXp: number;
   totalProgress: number;
+  newBadges: string[];
 };
 
 type UserDataContextValue = {
@@ -250,12 +254,17 @@ export function UserDataProvider({ children }: PropsWithChildren) {
       const userRef = doc(db, 'users', user.uid);
       const rankingRef = doc(db, 'ranking', user.uid);
       const disciplinaRef = doc(db, 'users', user.uid, 'disciplinas', disciplina.id);
-      const attemptRef = doc(collection(db, 'users', user.uid, 'quizAttempts'));
+      const attemptsCollection = collection(db, 'users', user.uid, 'quizAttempts');
+      const attemptRef = doc(attemptsCollection);
+      const lastAttemptQuery = query(attemptsCollection, orderBy('createdAt', 'desc'), limit(1));
+      const lastAttemptList = await getDocs(lastAttemptQuery);
+      const lastAttemptRef = lastAttemptList.docs[0]?.ref;
 
       const completion = await runTransaction(db, async (transaction) => {
-        const [userSnapshot, disciplinaSnapshot] = await Promise.all([
+        const [userSnapshot, disciplinaSnapshot, lastAttemptSnapshot] = await Promise.all([
           transaction.get(userRef),
           transaction.get(disciplinaRef),
+          lastAttemptRef ? transaction.get(lastAttemptRef) : Promise.resolve(null),
         ]);
 
         if (!userSnapshot.exists()) {
@@ -276,8 +285,19 @@ export function UserDataProvider({ children }: PropsWithChildren) {
           typeof userSnapshot.data().displayName === 'string' && userSnapshot.data().displayName.trim()
             ? userSnapshot.data().displayName.trim()
             : user.displayName || 'Estudante';
+        const badges = Array.isArray(userSnapshot.data()?.badges)
+          ? userSnapshot.data()!.badges.filter((badge: unknown): badge is string => typeof badge === 'string')
+          : [];
+        const lastAttempt = lastAttemptSnapshot?.data();
+        const earnedConsistencyBadge =
+          reward.passed && lastAttempt?.aprovado === true && !badges.includes(CONSISTENCY_BADGE);
+        const newBadges = earnedConsistencyBadge ? [CONSISTENCY_BADGE] : [];
 
-        transaction.set(userRef, { xp: totalXp }, { merge: true });
+        transaction.set(
+          userRef,
+          { xp: totalXp, ...(earnedConsistencyBadge ? { badges: [...badges, CONSISTENCY_BADGE] } : {}) },
+          { merge: true },
+        );
         transaction.update(disciplinaRef, { progresso: totalProgress });
         transaction.set(rankingRef, {
           displayName,
@@ -296,7 +316,7 @@ export function UserDataProvider({ children }: PropsWithChildren) {
           createdAt: serverTimestamp(),
         });
 
-        return { ...reward, totalXp, totalProgress };
+        return { ...reward, totalXp, totalProgress, newBadges };
       });
 
       return completion;

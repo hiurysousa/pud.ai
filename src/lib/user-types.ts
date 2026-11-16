@@ -1,5 +1,14 @@
 export const XP_PER_LEVEL = 500;
 
+export const CONSISTENCY_BADGE = 'consistencia-ouro';
+
+export const ACHIEVEMENT_DETAILS: Record<string, { title: string; description: string }> = {
+  [CONSISTENCY_BADGE]: {
+    title: 'Ritmo de Ouro',
+    description: 'Conclua dois quizzes seguidos com pelo menos 70% de acertos.',
+  },
+};
+
 export const QUIZ_LEVELS = ['iniciante', 'intermediário', 'avançado'] as const;
 
 export type QuizLevel = (typeof QUIZ_LEVELS)[number];

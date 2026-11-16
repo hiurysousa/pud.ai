@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useUserData } from '@/contexts/user-data-context';
-import { getLevel, getLevelProgress, XP_PER_LEVEL } from '@/lib/user-types';
+import { ACHIEVEMENT_DETAILS, CONSISTENCY_BADGE, getLevel, getLevelProgress, XP_PER_LEVEL } from '@/lib/user-types';
+import { Feather } from '@expo/vector-icons';
 
 function getInitials(name?: string | null) {
   if (!name) {
@@ -86,11 +87,22 @@ export default function PerfilScreen() {
               estudo.
             </Text>
           ) : (
-            badges.map((badge) => (
-              <Text key={badge} style={styles.badge}>
-                {badge}
-              </Text>
-            ))
+            badges.map((badge) => {
+              const achievement = ACHIEVEMENT_DETAILS[badge];
+              const isConsistencyBadge = badge === CONSISTENCY_BADGE;
+
+              return (
+                <View key={badge} style={styles.badge}>
+                  <View style={styles.badgeIcon}>
+                    <Feather name={isConsistencyBadge ? 'award' : 'star'} size={22} color={COLORS.accent} />
+                  </View>
+                  <View style={styles.badgeCopy}>
+                    <Text style={styles.badgeTitle}>{achievement?.title ?? badge}</Text>
+                    {achievement && <Text style={styles.badgeDescription}>{achievement.description}</Text>}
+                  </View>
+                </View>
+              );
+            })
           )}
         </View>
 
@@ -147,14 +159,19 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 12 },
   emptyText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
   badge: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.inputBackground,
-    padding: 10,
-    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#FFF7E6',
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
     marginBottom: 8,
-    overflow: 'hidden',
+    padding: 12,
   },
+  badgeIcon: { alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 20, height: 40, justifyContent: 'center', marginRight: 12, width: 40 },
+  badgeCopy: { flex: 1 },
+  badgeTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  badgeDescription: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17 },
   logoutButton: {
     borderWidth: 1,
     borderColor: COLORS.border,
